@@ -15,7 +15,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  -- exposed-modules:
+  exposed-modules:     Data.IP.Types
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.8 && <5.0,
@@ -24,3 +24,4 @@ library
                        data-dword >= 0.3 && < 0.4
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -Wall -Werror
