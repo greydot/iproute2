@@ -61,9 +61,9 @@ ip4 = do ns <- word32 `sepBy1'` char '.'
     toW8 n ns = foldl' (\x y -> x * 10 + y) 0 . map (fromIntegral . digitToInt) $ n : ns
 
 showIPv6 :: IPv6 -> ByteString
-showIPv6 (IPv6 a) = undefined
+showIPv6 ip@(IPv6 a) = undefined
   where
-    
+    ws = ip6ToWords ip
   
 {-
 showIPv6 :: IPv6 -> ShowS
@@ -105,8 +105,11 @@ ip6 = undefined
                      bs <- beforeEmbedded
                      emb <- splitIP4 <$> ip4
                      pure (wordsToIP6 $ bs ++ emb)
-              <|> do undefined
-                     
+                  -- Matches full IPv6
+              <|> do rs <- hexcolon
+                     when (length rs /= 8) $
+                       fail "Invalid address length"
+                     pure (wordsToIP6 rs)
     beforeEmbedded = many (hex <* char ':')
 
 splitIP4 :: IPv4 -> [Word16]
@@ -119,7 +122,7 @@ wordsToIP6 ws | length ws > 8 = error "wordsToIP6: invalid list length"
     go = foldr (\w r -> r * 0x10000 + fromIntegral w) 0
 
 ip6ToWords :: IPv6 -> [Word16]
-ip6ToWords (IPv6 a) = foldr (\n r -> fromIntegral (a .&. (0xffff `shift` 16 * n)) : r) [] [0..7]
+ip6ToWords (IPv6 a) = reverse $ foldr (\n r -> fromIntegral (a .&. (0xffff `shift` 16 * n)) : r) [] [0..7]
 
 {-
 ip6' :: Parser [Int]
