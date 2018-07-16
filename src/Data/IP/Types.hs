@@ -13,7 +13,11 @@ import Data.Char (digitToInt)
 import Data.DoubleWord (DoubleWord(..),Word128)
 import Data.Foldable (foldl')
 import Data.List (intersperse)
+import Data.Monoid ((<>))
 import Data.Word (Word16,Word32)
+import Numeric (showHex)
+
+import Debug.Trace
 
 newtype IPv4 = IPv4 Word32
   deriving (Eq,Ord,Enum,Bounded,Bits,FiniteBits)
@@ -61,10 +65,25 @@ ip4 = do ns <- word32 `sepBy1'` char '.'
     toW8 n ns = foldl' (\x y -> x * 10 + y) 0 . map (fromIntegral . digitToInt) $ n : ns
 
 showIPv6 :: IPv6 -> ByteString
-showIPv6 ip@(IPv6 a) = undefined
+showIPv6 ip
+    -- IPv4-mapped IPv6 address
+    | all (== 0) [w0,w1,w2,w3,w4] && w5 == 0xffff = "::ffff:" <> showIPv4 (IPv4 $ fromHiAndLo w6 w7)
+    -- IPv4-Compatible IPv6 Address (exclude IPRange ::/112)
+    | all (== 0) [w0,w1,w2,w3,w4,w5] && w6 >= 1 = "::" <> showIPv4 (IPv4 $ fromHiAndLo w6 w7)
+    -- IPv6 with ::
+    | end - begin > 1 = traceShow [begin,end,diff] $ showFields prefix <> "::" <> showFields suffix
+    -- IPv6 without ::
+    | otherwise = showFields fields
   where
-    ws = ip6ToWords ip
-  
+    fields@[w0,w1,w2,w3,w4,w5,w6,w7] = ip6ToWords ip
+    prefix = take begin fields  -- fields before "::"
+    suffix = drop end fields    -- fields after "::"
+    begin = end + diff          -- the longest run of zeros
+    (diff, end) = minimum $
+        scanl (\c i -> if i == 0 then c - 1 else 0) 0 fields `zip` [0..]
+    showFields = mconcat . intersperse ":" . map (\f -> ByteString.pack $ showHex f "")
+
+
 {-
 showIPv6 :: IPv6 -> ShowS
 showIPv6 ip@(IP6 (a1,a2,a3,a4))
