@@ -1,50 +1,27 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Data.IP.Types where
+module Data.IP.Parser.Text ( ip4
+                           , showIPv4
+                           , ip6
+                           , showIPv6
+                           , ipaddr
+                           , showIPAddr
+                           ) where
+
+import Data.IP.Types (IPv4(..), IPv6(..), IPAddr(..))
 
 import Control.Applicative ((<|>), many)
 import Control.Monad (when,void)
-import Data.Attoparsec.ByteString.Char8 hiding (Fail, Done, parse, take)
-import Data.Attoparsec.ByteString.Lazy (Result(..), parse)
-import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as ByteString
+import Data.Attoparsec.Text hiding (take)
 import Data.Bits
 import Data.Char (digitToInt)
-import Data.DoubleWord (DoubleWord(..),Word128)
+import Data.DoubleWord (DoubleWord(..))
 import Data.Foldable (foldl')
 import Data.List (intersperse)
 import Data.Monoid ((<>))
-import Data.String (IsString(..))
-import Data.Word (Word16,Word32)
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Data.Word (Word16, Word32)
 import Numeric (showHex)
-
-newtype IPv4 = IPv4 Word32
-  deriving (Eq,Ord,Enum,Bounded,Bits,FiniteBits)
-
-newtype IPv6 = IPv6 Word128
-  deriving (Eq,Ord,Enum,Bounded,Bits,FiniteBits)
-
-instance Show IPv4 where
-  show ip = ByteString.unpack $ showIPv4 ip
-
-showIPv4 :: IPv4 -> ByteString
-showIPv4 (IPv4 a) = let l = [ (a .&. 0xff000000) `shiftR` 24
-                            , (a .&. 0x00ff0000) `shiftR` 16
-                            , (a .&. 0x0000ff00) `shiftR` 8
-                            ,  a .&. 0x000000ff
-                            ]
-                    in mconcat $ intersperse "." $ map s l
-  where
-    s = ByteString.pack . show
-
-instance Read IPv4 where
-  readsPrec _ s = let bs = ByteString.pack s
-                  in case parse ip4 bs of
-                       Fail _ _ _ -> []
-                       Done rest ip -> [(ip, ByteString.unpack rest)]
-
-instance IsString IPv4 where
-  fromString = read
 
 ip4 :: Parser IPv4
 ip4 = do ns <- word32 `sepBy1'` char '.'
@@ -63,36 +40,16 @@ ip4 = do ns <- word32 `sepBy1'` char '.'
     word32 = 0 <$ char '0' <|> toW8 <$> oneOf ['1' .. '9'] <*> many digit
     toW8 n ns = foldl' (\x y -> x * 10 + y) 0 . map (fromIntegral . digitToInt) $ n : ns
 
-instance Show IPv6 where
-  show ip = ByteString.unpack $ showIPv6 ip
-
-showIPv6 :: IPv6 -> ByteString
-showIPv6 ip
-    -- IPv4-mapped IPv6 address
-    | all (== 0) [w0,w1,w2,w3,w4] && w5 == 0xffff = "::ffff:" <> showIPv4 (IPv4 $ fromHiAndLo w6 w7)
-    -- IPv4-Compatible IPv6 Address (exclude IPRange ::/112)
-    | all (== 0) [w0,w1,w2,w3,w4,w5] && w6 >= 1 = "::" <> showIPv4 (IPv4 $ fromHiAndLo w6 w7)
-    -- IPv6 with ::
-    | end - begin > 1 = showFields prefix <> "::" <> showFields suffix
-    -- IPv6 without ::
-    | otherwise = showFields fields
+showIPv4 :: IPv4 -> Text
+showIPv4 (IPv4 a) = let l = [ (a .&. 0xff000000) `shiftR` 24
+                            , (a .&. 0x00ff0000) `shiftR` 16
+                            , (a .&. 0x0000ff00) `shiftR` 8
+                            ,  a .&. 0x000000ff
+                            ]
+                    in mconcat $ intersperse "." $ map s l
   where
-    fields@[w0,w1,w2,w3,w4,w5,w6,w7] = ip6ToWords ip
-    prefix = take begin fields  -- fields before "::"
-    suffix = drop end fields    -- fields after "::"
-    begin = end + diff          -- the longest run of zeros
-    (diff, end) = minimum $
-        scanl (\c i -> if i == 0 then c - 1 else 0) 0 fields `zip` [0..]
-    showFields = mconcat . intersperse ":" . map (\f -> ByteString.pack $ showHex f "")
+    s = Text.pack . show
 
-instance Read IPv6 where
-  readsPrec _ s = let bs = ByteString.pack s
-                  in case parse ip6 bs of
-                       Fail _ _ _ -> []
-                       Done rest ip -> [(ip, ByteString.unpack rest)]
-
-instance IsString IPv6 where
-  fromString = read
 
 ip6 :: Parser IPv6
 ip6 = ip4embedded
@@ -149,6 +106,34 @@ ip6 = ip4embedded
                      pure (wordsToIP6 $ bs ++ emb)
     beforeEmbedded = many (hex <* char ':')
 
+showIPv6 :: IPv6 -> Text
+showIPv6 ip
+    -- IPv4-mapped IPv6 address
+    | all (== 0) [w0,w1,w2,w3,w4] && w5 == 0xffff = "::ffff:" <> showIPv4 (IPv4 $ fromHiAndLo w6 w7)
+    -- IPv4-Compatible IPv6 Address (exclude IPRange ::/112)
+    | all (== 0) [w0,w1,w2,w3,w4,w5] && w6 >= 1 = "::" <> showIPv4 (IPv4 $ fromHiAndLo w6 w7)
+    -- IPv6 with ::
+    | end - begin > 1 = showFields prefix <> "::" <> showFields suffix
+    -- IPv6 without ::
+    | otherwise = showFields fields
+  where
+    fields@[w0,w1,w2,w3,w4,w5,w6,w7] = ip6ToWords ip
+    prefix = take begin fields  -- fields before "::"
+    suffix = drop end fields    -- fields after "::"
+    begin = end + diff          -- the longest run of zeros
+    (diff, end) = minimum $
+        scanl (\c i -> if i == 0 then c - 1 else 0) 0 fields `zip` [0..]
+    showFields = mconcat . intersperse ":" . map (\f -> Text.pack $ showHex f "")
+
+
+ipaddr :: Parser IPAddr
+ipaddr = IP4 <$> ip4
+     <|> IP6 <$> ip6
+
+showIPAddr :: IPAddr -> Text
+showIPAddr (IP4 ip) = showIPv4 ip
+showIPAddr (IP6 ip) = showIPv6 ip
+
 splitIP4 :: IPv4 -> [Word16]
 splitIP4 (IPv4 a) = [hiWord a, loWord a]
 
@@ -165,27 +150,3 @@ ip6ToWords (IPv6 a) = reverse $ foldr f [] [0..7]
 
 oneOf :: [Char] -> Parser Char
 oneOf xs = satisfy (`elem` xs)
-
-data IPAddr = IP4 {-# UNPACK #-} !IPv4
-            | IP6 {-# UNPACK #-} !IPv6
-  deriving (Eq, Ord)
-
-showIPAddr :: IPAddr -> ByteString
-showIPAddr (IP4 ip) = showIPv4 ip
-showIPAddr (IP6 ip) = showIPv6 ip
-
-instance Show IPAddr where
-  show = ByteString.unpack . showIPAddr
-
-ipaddr :: Parser IPAddr
-ipaddr = IP4 <$> ip4
-     <|> IP6 <$> ip6
-
-instance Read IPAddr where
-  readsPrec _ s = let bs = ByteString.pack s
-                  in case parse ipaddr bs of
-                       Fail _ _ _ -> []
-                       Done rest ip -> [(ip, ByteString.unpack rest)]
-
-instance IsString IPAddr where
-  fromString = read
