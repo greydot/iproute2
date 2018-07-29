@@ -102,7 +102,7 @@ ip6 = ip4embedded
          let l = length bs
          when (l > 7) $
            fail "Ipv6 address too long"
-         pure (wordsToIP6 $ take (8 - l) (repeat 0) ++ bs)
+         pure (wordsToIP6 $ take (8 - l) zs ++ bs)
       -- Matches 2001:db8::1
   <|> do pref <- hexcolon
          _ <- colons
@@ -110,14 +110,14 @@ ip6 = ip4embedded
          let l = length pref + length suf
          when (l > 7) $
            fail "Invalid IPv6"
-         pure $ wordsToIP6 $ pref ++ take (8 - l) (repeat 0) ++ suf
+         pure $ wordsToIP6 $ pref ++ take (8 - l) zs ++ suf
       -- Matches 2001:db8::
   <|> do pref <- hexcolon
          _ <- colons
          let l = length pref
          when (l > 7) $
            fail "Invalid IPv6"
-         pure $ wordsToIP6 $ pref ++ take (8 - l) (repeat 0)
+         pure $ wordsToIP6 $ pref ++ take (8 - l) zs
   <|> do bs <- hexcolon
          when (length bs /= 8) $
            fail "Invalid IPv6"

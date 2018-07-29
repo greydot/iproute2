@@ -5,4 +5,4 @@ module Data.IP.Parser.ByteString ( ip4
                                  , ipaddr
                                  , showIPAddr
                                  ) where
-import Data.IP.Types
+import Data.IP.Addr

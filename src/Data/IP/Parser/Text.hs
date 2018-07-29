@@ -7,7 +7,7 @@ module Data.IP.Parser.Text ( ip4
                            , showIPAddr
                            ) where
 
-import Data.IP.Types (IPv4(..), IPv6(..), IPAddr(..))
+import Data.IP.Addr (IPv4(..), IPv6(..), IPAddr(..))
 
 import Control.Applicative ((<|>), many)
 import Control.Monad (when,void)
