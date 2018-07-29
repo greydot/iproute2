@@ -134,20 +134,26 @@ ip6 = ip4embedded
                   do _ <- colons
                      bs <- beforeEmbedded
                      emb <- splitIP4 <$> ip4
-                     pure (wordsToIP6 $ bs ++ emb)
+                     when (length bs > 5) $
+                       fail "Invalid address length"
+                     let zl = 8 - length bs - 2
+                     pure (wordsToIP6 $ take zl zs ++ bs ++ emb)
                   -- Matches 2001:db8::192.168.0.1
-              <|> do bs <- beforeEmbedded
+              <|> do bs <- hexcolon -- beforeEmbedded
                      _ <- colons
                      emb <- splitIP4 <$> ip4
+                     let zl = 8 - length bs - 2
                      when (length bs > 6) $
                        fail "Invalid address length"
-                     pure (wordsToIP6 $ bs ++ emb)
-              <|> do bs <- beforeEmbedded
+                     pure (wordsToIP6 $ bs ++ take zl zs ++ emb)
+              <|> do bs <- hexcolon
+                     _ <- char ':'
                      when (length bs /= 6) $
                        fail "Invalid address"
                      emb <- splitIP4 <$> ip4
                      pure (wordsToIP6 $ bs ++ emb)
     beforeEmbedded = many (hex <* char ':')
+    zs = repeat 0
 
 splitIP4 :: IPv4 -> [Word16]
 splitIP4 (IPv4 a) = [hiWord a, loWord a]
