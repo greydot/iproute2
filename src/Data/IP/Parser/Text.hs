@@ -5,9 +5,16 @@ module Data.IP.Parser.Text ( ip4
                            , showIPv6
                            , ipaddr
                            , showIPAddr
+                           , ip4range
+                           , showIP4Range
+                           , ip6range
+                           , showIP6Range
+                           , iprange
+                           , showIPRange
                            ) where
 
 import Data.IP.Addr (IPv4(..), IPv6(..), IPAddr(..))
+import Data.IP.Range (AddrRange (..), makeAddrRange)
 
 import Control.Applicative ((<|>), many)
 import Control.Monad (when,void)
@@ -150,3 +157,40 @@ ip6ToWords (IPv6 a) = reverse $ foldr f [] [0..7]
 
 oneOf :: [Char] -> Parser Char
 oneOf xs = satisfy (`elem` xs)
+
+ip4range :: Parser (AddrRange IPv4)
+ip4range = do ip <- ip4
+              _ <- char '/'
+              m <- decimal :: Parser Int
+              when (m < 0 || m > 32) $
+                fail "invalid mask"
+              return (makeAddrRange ip m)
+
+showIP4Range :: AddrRange IPv4 -> Text
+showIP4Range (AddrRange a m) = showIPv4 a <> "/" <> mb
+  where mb = Text.pack $ show m
+
+ip6range :: Parser (AddrRange IPv6)
+ip6range = do ip <- ip6
+              _ <- char '/'
+              m <- decimal :: Parser Int
+              when (m < 0 || m > 128) $
+                fail "invalid mask"
+              return (makeAddrRange ip m)
+
+showIP6Range :: AddrRange IPv6 -> Text
+showIP6Range (AddrRange a m) = showIPv6 a <> "/" <> mb
+  where mb = Text.pack $ show m
+
+iprange :: Parser (AddrRange IPAddr)
+iprange = do ip <- ipaddr
+             _ <- char '/'
+             m <- decimal :: Parser Int
+             when (m < 0 || m > 128) $
+               fail "invalid mask"
+             return (makeAddrRange ip m)
+
+showIPRange :: AddrRange IPAddr -> Text
+showIPRange (AddrRange a m) = showIPAddr a <> "/" <> mb
+  where mb = Text.pack $ show m
+

@@ -1,6 +1,7 @@
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Data.IP.Types where
+module Data.IP.Addr where
 
 import Control.Applicative ((<|>), many)
 import Control.Monad (when,void)
@@ -195,3 +196,23 @@ instance Read IPAddr where
 
 instance IsString IPAddr where
   fromString = read
+
+class Address a where
+  mask :: a -> Int -> a
+  default mask :: FiniteBits a => a -> Int -> a
+  mask a l = let m = foldl' setBit zeroBits [finiteBitSize a - l..finiteBitSize a]
+             in a .&. m
+
+  addrLength :: a -> Int
+  default addrLength :: FiniteBits a => a -> Int
+  addrLength = finiteBitSize
+
+instance Address IPv4
+instance Address IPv6
+
+instance Address IPAddr where
+  mask (IP4 a) l = IP4 (mask a l)
+  mask (IP6 a) l = IP6 (mask a l)
+
+  addrLength (IP4 a) = addrLength a
+  addrLength (IP6 a) = addrLength a
