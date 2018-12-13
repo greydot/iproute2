@@ -197,7 +197,7 @@ instance Read IPAddr where
 instance IsString IPAddr where
   fromString = read
 
-class Address a where
+class Eq a => Address a where
   mask :: a -> Int -> a
   default mask :: FiniteBits a => a -> Int -> a
   mask a l = let m = foldl' setBit zeroBits [finiteBitSize a - l..finiteBitSize a]

@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Data.IP.Range where
@@ -10,10 +12,14 @@ import Data.Attoparsec.ByteString.Lazy (Result(..), parse)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as ByteString
 import Data.Monoid ((<>))
+import Data.String
 import Data.Word (Word8)
 
 data AddrRange a = AddrRange a Word8
   deriving (Eq, Ord)
+
+instance Read (AddrRange a) => IsString (AddrRange a) where
+  fromString = read
 
 makeAddrRange :: Address a => a -> Int -> AddrRange a
 makeAddrRange a l = AddrRange (a `mask` l) (fromIntegral l)
@@ -81,3 +87,6 @@ instance Read (AddrRange IPAddr) where
 
 instance Show (AddrRange IPAddr) where
   show = ByteString.unpack . showIPRange
+
+(>:>) :: Address a => AddrRange a -> AddrRange a -> Bool
+AddrRange ip l >:> AddrRange ip' l' = l' >= l && ip' `mask` fromIntegral l == ip
